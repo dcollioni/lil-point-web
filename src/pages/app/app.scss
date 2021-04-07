@@ -1,0 +1,80 @@
+@import './../../base';
+
+.app {
+  > header {
+    background-color: $primary-color;
+    border-radius: 0px;
+
+    .header-content {
+      display: grid;
+      grid-template-columns: 1fr 0fr;
+      gap: 20px;
+      margin: 0 $content-margin;
+      max-width: $max-width;
+
+      h1 {
+        font-size: 20px;
+        margin: 0;
+        padding: 20px 0;
+
+        a {
+          color: $text-color-light;
+          text-decoration: none;
+        }
+      }
+    }
+  }
+
+  > .content {
+    margin: $content-margin;
+    margin-bottom: 60px !important;
+    max-width: $max-width;
+  }
+
+  > footer {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+
+    .footer-content {
+      margin: 0 $content-margin;
+      max-width: $max-width;
+      padding: $content-margin;
+      text-align: center;
+    }
+  }
+
+  @media screen and (min-width: $desktop-width) {
+    > .header {
+      .header-content {
+        margin: 0 $desktop-content-margin;
+      }
+    }
+    > .content {
+      margin: $desktop-content-margin;
+    }
+    > footer {
+      .footer-content {
+        margin: 0 $desktop-content-margin;
+      }
+    }
+  }
+
+  @media screen and (min-width: ($max-width + ($desktop-content-margin * 2))) {
+    > .header {
+      .header-content {
+        margin: 0 auto;
+      }
+    }
+    > .content {
+      margin: $desktop-content-margin auto;
+    }
+    > footer {
+      .footer-content {
+        margin: 0 auto;
+      }
+    }
+  }
+}
