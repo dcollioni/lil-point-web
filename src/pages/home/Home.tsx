@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { CSSProperties, useState } from 'react'
 import Deck from '../../models/Deck'
 import './home.scss'
 import { v4 as uuidv4 } from 'uuid'
 import Player from '../../models/Player'
 import Card from '../../models/Card'
 import CardComponent from './../../components/card/Card'
+import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd'
 const { fetch } = window
 
 const mapCardValue = (value: string): number => {
@@ -83,6 +84,56 @@ function Home() {
     setDeck({ ...deck, remaining: deck.remaining })
   }
 
+  const reorder = (list: Card[], startIndex: number, endIndex: number) => {
+    const result = Array.from(list)
+    const [removed] = result.splice(startIndex, 1)
+    result.splice(endIndex, 0, removed)
+
+    return result
+  }
+
+  const onDragEnd = (result: DropResult) => {
+    // dropped outside the list
+    if (!result.destination) {
+      return
+    }
+
+    console.log({ result })
+    const { droppableId } = result.destination
+    const player = players.find(p => p.id === droppableId)
+
+    if (player) {
+      player.deck.cards = reorder(player.deck.cards, result.source.index, result.destination.index)
+    }
+
+    // setPlayers([...players])
+  }
+
+  const grid = 8
+
+  const getItemStyle = (
+    isDragging: boolean,
+    draggableStyle: DraggingStyle | NotDraggingStyle | undefined,
+  ): CSSProperties => ({
+    // some basic styles to make the items look a bit nicer
+    userSelect: 'none',
+    // padding: grid * 2,
+    margin: `0 ${grid}px 0 0`,
+
+    // change background colour if dragging
+    background: isDragging ? 'transparent' : 'transparent',
+
+    // styles we need to apply on draggables
+    ...draggableStyle,
+  })
+
+  const getListStyle = (isDraggingOver: boolean) => ({
+    background: isDraggingOver ? 'transparent' : 'transparent',
+    display: 'flex',
+    padding: grid,
+    overflow: 'auto',
+  })
+
   return (
     <div className="home">
       <h2>Home</h2>
@@ -97,11 +148,34 @@ function Home() {
       {players.map(player => (
         <div key={player.id} className="player">
           {player.name} ({player.deck.remaining} cartas)
-          <div className="deck">
-            {player.deck.cards.map(card => (
-              <CardComponent key={card.id} card={card} />
-            ))}
-          </div>
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId={player.id} direction="horizontal">
+              {(provided, snapshot) => (
+                <div
+                  className="deck"
+                  ref={provided.innerRef}
+                  style={getListStyle(snapshot.isDraggingOver)}
+                  {...provided.droppableProps}
+                >
+                  {player.deck.cards.map((card, index) => (
+                    <Draggable key={card.id} draggableId={card.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          key={card.id}
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          style={getItemStyle(snapshot.isDragging, provided.draggableProps.style)}
+                        >
+                          <CardComponent card={card} />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         </div>
       ))}
     </div>

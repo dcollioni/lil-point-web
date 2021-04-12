@@ -19,7 +19,6 @@ function Card(props: Props) {
       className={`card ${isSelected ? 'selected' : ''}`}
       style={{ backgroundImage: `url(${image})` }}
       onClick={toggleSelection}
-      draggable={true}
     ></div>
   )
 }
