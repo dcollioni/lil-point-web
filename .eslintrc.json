@@ -10,9 +10,12 @@
     "ecmaVersion": 12,
     "sourceType": "module"
   },
-  "plugins": ["prettier", "jest"],
+  "plugins": ["prettier", "jest", "react-hooks"],
   "rules": {
     "prettier/prettier": "error",
-    "no-debugger": "warn"
+    "no-debugger": "warn",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "no-unused-vars": "warn"
   }
 }

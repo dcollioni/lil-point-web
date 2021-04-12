@@ -47,7 +47,7 @@
   }
 
   @media screen and (min-width: $desktop-width) {
-    > .header {
+    > header {
       .header-content {
         margin: 0 $desktop-content-margin;
       }
@@ -63,7 +63,7 @@
   }
 
   @media screen and (min-width: ($max-width + ($desktop-content-margin * 2))) {
-    > .header {
+    > header {
       .header-content {
         margin: 0 auto;
       }
