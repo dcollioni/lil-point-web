@@ -4,6 +4,7 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
+  border: 1px dashed transparent;
   border-radius: 6px;
   box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);
   display: inline-block;
@@ -13,6 +14,7 @@
   height: 139px;
 
   &.selected {
+    border-color: #444;
     transform: translateY(-20px);
   }
 }

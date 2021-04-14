@@ -26,6 +26,7 @@ const mapCardValue = (value: string): number => {
 function Home() {
   const [deck, setDeck] = useState<Deck>()
   const [players, setPlayers] = useState<Player[]>([])
+  // const [selectedCards, setSelectedCards] = useState<Card[]>([])
 
   const start = async () => {
     console.log('iniciar...')
@@ -38,8 +39,20 @@ function Home() {
     setDeck(deck)
 
     const createPlayers = () => {
-      const player1: Player = { id: uuidv4(), name: 'Player 1', deck: { id: uuidv4(), remaining: 0, cards: [] } }
-      const player2: Player = { id: uuidv4(), name: 'Player 2', deck: { id: uuidv4(), remaining: 0, cards: [] } }
+      const player1: Player = {
+        id: uuidv4(),
+        name: 'Player 1',
+        deck: { id: uuidv4(), remaining: 0, cards: [] },
+        selectedCards: [],
+        games: [],
+      }
+      const player2: Player = {
+        id: uuidv4(),
+        name: 'Player 2',
+        deck: { id: uuidv4(), remaining: 0, cards: [] },
+        selectedCards: [],
+        games: [],
+      }
       return [player1, player2]
     }
 
@@ -65,7 +78,6 @@ function Home() {
                 suit: drawnCard.suit,
                 value: mapCardValue(drawnCard.value),
               }
-              // console.log(card)
 
               player.deck.cards.push(card)
               player.deck.remaining = player.deck.cards.length
@@ -134,6 +146,26 @@ function Home() {
     overflow: 'auto',
   })
 
+  const onClickCard = (player: Player, card: Card) => {
+    const { selectedCards } = player
+    if (selectedCards.includes(card)) {
+      player.selectedCards = selectedCards.filter(c => c !== card)
+      setPlayers([...players])
+    } else {
+      player.selectedCards.push(card)
+      setPlayers([...players])
+    }
+  }
+
+  const onClickDropGame = (player: Player) => {
+    const { selectedCards } = player
+    player.games.push(selectedCards)
+    player.deck.cards = player.deck.cards.filter(card => !player.selectedCards.includes(card))
+    player.deck.remaining = player.deck.cards.length
+    player.selectedCards = []
+    setPlayers([...players])
+  }
+
   return (
     <div className="home">
       <h2>Home</h2>
@@ -147,7 +179,12 @@ function Home() {
 
       {players.map(player => (
         <div key={player.id} className="player">
-          {player.name} ({player.deck.remaining} cartas)
+          <span>
+            {player.name} ({player.deck.remaining} cartas)
+          </span>
+          <span>
+            <button onClick={() => onClickDropGame(player)}>Baixar jogo</button>
+          </span>
           <DragDropContext onDragEnd={onDragEnd}>
             <Droppable droppableId={player.id} direction="horizontal">
               {(provided, snapshot) => (
@@ -167,7 +204,11 @@ function Home() {
                           {...provided.dragHandleProps}
                           style={getItemStyle(snapshot.isDragging, provided.draggableProps.style)}
                         >
-                          <CardComponent card={card} />
+                          <CardComponent
+                            card={card}
+                            isSelected={player.selectedCards.includes(card)}
+                            onClick={() => onClickCard(player, card)}
+                          />
                         </div>
                       )}
                     </Draggable>
@@ -176,6 +217,15 @@ function Home() {
               )}
             </Droppable>
           </DragDropContext>
+          <div className="games">
+            {player.games.map(game => (
+              <div className="game" key={game[0].id}>
+                {game.map(card => (
+                  <CardComponent key={card.id} card={card} />
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>

@@ -3,3 +3,14 @@
 .home {
   background-color: $background-color;
 }
+
+.games {
+  .game {
+    display: inline-block;
+    margin-right: 150px;
+
+    .card {
+      margin-right: -60px;
+    }
+  }
+}
