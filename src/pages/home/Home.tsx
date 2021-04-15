@@ -153,13 +153,17 @@ function Home() {
       const card = player?.deck.cards.find(c => c.id === cardId)
 
       if (game && card) {
-        game.cards.push(card)
-        setTable({ ...table })
+        const newGame = [...game.cards, card]
+        const validGame = isGameValid(newGame)
+        if (validGame) {
+          game.cards = validGame
+          setTable({ ...table })
 
-        if (player) {
-          player.deck.cards = player.deck.cards.filter(c => c.id !== cardId)
-          player.deck.remaining = player.deck.cards.length
-          setPlayers([...players])
+          if (player) {
+            player.deck.cards = player.deck.cards.filter(c => c.id !== cardId)
+            player.deck.remaining = player.deck.cards.length
+            setPlayers([...players])
+          }
         }
       }
       return
@@ -204,7 +208,13 @@ function Home() {
 
   const onClickDropGame = (player: Player) => {
     const { selectedCards } = player
-    table.games.push({ id: uuidv4(), cards: selectedCards })
+    const validGame = isGameValid(selectedCards)
+
+    if (!validGame) {
+      return
+    }
+
+    table.games.push({ id: uuidv4(), cards: validGame })
     player.deck.cards = player.deck.cards.filter(card => !player.selectedCards.includes(card))
     player.deck.remaining = player.deck.cards.length
     player.selectedCards = []
@@ -236,6 +246,67 @@ function Home() {
         setDeck({ ...deck })
       }
     }
+  }
+
+  const isGameValid = (cards: Card[]) => {
+    if (cards.length < 3) {
+      return false
+    }
+
+    let sortedCards = [...cards].sort(sortBySuit).sort(sortByValue)
+    console.log(sortedCards)
+
+    const uniqueSuits = new Set(sortedCards.map(card => card.suit))
+    if (uniqueSuits.size === 1) {
+      const validSequence = '1-2-3-4-5-6-7-8-9-10-11-12-13-14'
+      const values = sortedCards.map(card => card.value).join('-')
+      console.log(values)
+
+      if (!validSequence.includes(values)) {
+        const ace = sortedCards.find(card => card.value === 1)
+        if (ace) {
+          ace.value = 14
+          sortedCards = sortedCards.sort(sortByValue)
+          const values = sortedCards.map(card => card.value).join('-')
+          console.log(values)
+
+          if (!validSequence.includes(values)) {
+            return false
+          }
+        }
+
+        return false
+      }
+    } else if (uniqueSuits.size === 3) {
+      const uniqueValues = new Set(sortedCards.map(card => card.value))
+      if (uniqueValues.size > 1) {
+        return false
+      }
+    } else {
+      return false
+    }
+
+    return sortedCards
+  }
+
+  const sortBySuit = (a: Card, b: Card) => {
+    if (a.suit < b.suit) {
+      return -1
+    }
+    if (a.suit > b.suit) {
+      return 1
+    }
+    return 0
+  }
+
+  const sortByValue = (a: Card, b: Card) => {
+    if (a.value < b.value) {
+      return -1
+    }
+    if (a.value > b.value) {
+      return 1
+    }
+    return 0
   }
 
   return (
