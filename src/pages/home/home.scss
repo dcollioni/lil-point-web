@@ -14,3 +14,18 @@
     }
   }
 }
+
+#table {
+  .discarded {
+    border: 1px dotted #444;
+    display: inline-block;
+    margin: 10px;
+    width: 100px;
+    height: 139px;
+
+    .card {
+      margin: 0;
+      position: absolute;
+    }
+  }
+}

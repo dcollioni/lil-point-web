@@ -6,6 +6,7 @@ import Player from '../../models/Player'
 import Card from '../../models/Card'
 import CardComponent from './../../components/card/Card'
 import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd'
+import Table from '../../models/Table'
 const { fetch } = window
 
 const mapCardValue = (value: string): number => {
@@ -26,7 +27,7 @@ const mapCardValue = (value: string): number => {
 function Home() {
   const [deck, setDeck] = useState<Deck>()
   const [players, setPlayers] = useState<Player[]>([])
-  // const [selectedCards, setSelectedCards] = useState<Card[]>([])
+  const [table, setTable] = useState<Table>({ games: [], discarded: [] })
 
   const start = async () => {
     console.log('iniciar...')
@@ -36,7 +37,10 @@ function Home() {
     console.log(newDeck)
 
     const deck = { id: newDeck.deck_id, remaining: newDeck.remaining, cards: [] }
-    setDeck(deck)
+    setDeck({ ...deck })
+
+    const table: Table = { games: [], discarded: [] }
+    setTable({ ...table })
 
     const createPlayers = () => {
       const player1: Player = {
@@ -44,14 +48,12 @@ function Home() {
         name: 'Player 1',
         deck: { id: uuidv4(), remaining: 0, cards: [] },
         selectedCards: [],
-        games: [],
       }
       const player2: Player = {
         id: uuidv4(),
         name: 'Player 2',
         deck: { id: uuidv4(), remaining: 0, cards: [] },
         selectedCards: [],
-        games: [],
       }
       return [player1, player2]
     }
@@ -110,10 +112,30 @@ function Home() {
       return
     }
 
-    console.log({ result })
+    console.log(result)
     const { droppableId } = result.destination
-    const player = players.find(p => p.id === droppableId)
 
+    if (droppableId === 'discard') {
+      const cardId = result.draggableId
+      const playerId = result.source.droppableId
+      const player = players.find(p => p.id === playerId)
+      const card = player?.deck.cards.find(c => c.id === cardId)
+
+      if (card) {
+        table.discarded.push(card)
+        setTable({ ...table })
+
+        if (player) {
+          player.deck.cards = player.deck.cards.filter(c => c.id !== cardId)
+          player.deck.remaining = player.deck.cards.length
+          setPlayers([...players])
+        }
+      }
+
+      return
+    }
+
+    const player = players.find(p => p.id === droppableId)
     if (player) {
       player.deck.cards = reorder(player.deck.cards, result.source.index, result.destination.index)
     }
@@ -159,33 +181,92 @@ function Home() {
 
   const onClickDropGame = (player: Player) => {
     const { selectedCards } = player
-    player.games.push(selectedCards)
+    table.games.push(selectedCards)
     player.deck.cards = player.deck.cards.filter(card => !player.selectedCards.includes(card))
     player.deck.remaining = player.deck.cards.length
     player.selectedCards = []
     setPlayers([...players])
+    setTable({ ...table })
+  }
+
+  const onClickTakeCard = async (player: Player) => {
+    const response = await fetch(`https://deckofcardsapi.com/api/deck/${deck?.id}/draw/?count=1`)
+    if (response.ok) {
+      const { cards, remaining } = await response.json()
+      const drawnCard = cards[0]
+
+      const card: Card = {
+        id: uuidv4(),
+        code: drawnCard.code,
+        image: drawnCard.image,
+        name: drawnCard.value,
+        suit: drawnCard.suit,
+        value: mapCardValue(drawnCard.value),
+      }
+
+      player.deck.cards.push(card)
+      player.deck.remaining = player.deck.cards.length
+      setPlayers([...players])
+
+      if (deck) {
+        deck.remaining = remaining
+        setDeck({ ...deck })
+      }
+    }
   }
 
   return (
-    <div className="home">
-      <h2>Home</h2>
-      <button onClick={start}>Iniciar</button>
+    <DragDropContext onDragEnd={onDragEnd}>
+      <div className="home">
+        <h2>Home</h2>
+        <button onClick={start}>Iniciar</button>
 
-      {deck && (
-        <div id="deck">
-          <p>Cartas restantes: {deck.remaining}</p>
-        </div>
-      )}
+        {deck && (
+          <div id="deck">
+            <p>Cartas restantes: {deck.remaining}</p>
+          </div>
+        )}
 
-      {players.map(player => (
-        <div key={player.id} className="player">
-          <span>
-            {player.name} ({player.deck.remaining} cartas)
-          </span>
-          <span>
-            <button onClick={() => onClickDropGame(player)}>Baixar jogo</button>
-          </span>
-          <DragDropContext onDragEnd={onDragEnd}>
+        {table && (
+          <div id="table">
+            <Droppable droppableId="discard" direction="horizontal">
+              {(provided, snapshot) => (
+                <div
+                  className="discarded"
+                  ref={provided.innerRef}
+                  style={getListStyle(snapshot.isDraggingOver)}
+                  {...provided.droppableProps}
+                >
+                  {table.discarded.map(card => (
+                    <div key={card.id}>
+                      <CardComponent card={card} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Droppable>
+
+            <div className="games">
+              {table.games.map(game => (
+                <div className="game" key={game[0].id}>
+                  {game.map(card => (
+                    <CardComponent key={card.id} card={card} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {players.map(player => (
+          <div key={player.id} className="player">
+            <span>
+              {player.name} ({player.deck.remaining} cartas)
+            </span>
+            <span>
+              <button onClick={() => onClickDropGame(player)}>Baixar jogo</button>
+              <button onClick={() => onClickTakeCard(player)}>Comprar carta</button>
+            </span>
             <Droppable droppableId={player.id} direction="horizontal">
               {(provided, snapshot) => (
                 <div
@@ -216,19 +297,10 @@ function Home() {
                 </div>
               )}
             </Droppable>
-          </DragDropContext>
-          <div className="games">
-            {player.games.map(game => (
-              <div className="game" key={game[0].id}>
-                {game.map(card => (
-                  <CardComponent key={card.id} card={card} />
-                ))}
-              </div>
-            ))}
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </DragDropContext>
   )
 }
 

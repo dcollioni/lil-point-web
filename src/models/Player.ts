@@ -6,7 +6,6 @@ interface Player {
   name: string
   deck: Deck
   selectedCards: Card[]
-  games: Card[][]
 }
 
 export default Player
