@@ -1,7 +1,8 @@
 import Card from './Card'
+import Game from './Game'
 
 interface Table {
-  games: Card[][]
+  games: Game[]
   discarded: Card[]
 }
 

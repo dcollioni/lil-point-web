@@ -113,11 +113,11 @@ function Home() {
     }
 
     console.log(result)
-    const { droppableId } = result.destination
+    let { droppableId } = result.destination
 
     if (droppableId === 'discard') {
       const cardId = result.draggableId
-      const playerId = result.source.droppableId
+      const playerId = result.source.droppableId.split('_')[1]
       const player = players.find(p => p.id === playerId)
       const card = player?.deck.cards.find(c => c.id === cardId)
 
@@ -131,16 +131,39 @@ function Home() {
           setPlayers([...players])
         }
       }
-
       return
     }
 
-    const player = players.find(p => p.id === droppableId)
-    if (player) {
-      player.deck.cards = reorder(player.deck.cards, result.source.index, result.destination.index)
+    if (droppableId.startsWith('player')) {
+      droppableId = droppableId.split('_')[1]
+      const player = players.find(p => p.id === droppableId)
+      if (player) {
+        player.deck.cards = reorder(player.deck.cards, result.source.index, result.destination.index)
+      }
+      return
     }
 
-    // setPlayers([...players])
+    if (droppableId.startsWith('game')) {
+      droppableId = droppableId.split('_')[1]
+      const game = table.games.find(g => g.id === droppableId)
+
+      const cardId = result.draggableId
+      const playerId = result.source.droppableId.split('_')[1]
+      const player = players.find(p => p.id === playerId)
+      const card = player?.deck.cards.find(c => c.id === cardId)
+
+      if (game && card) {
+        game.cards.push(card)
+        setTable({ ...table })
+
+        if (player) {
+          player.deck.cards = player.deck.cards.filter(c => c.id !== cardId)
+          player.deck.remaining = player.deck.cards.length
+          setPlayers([...players])
+        }
+      }
+      return
+    }
   }
 
   const grid = 8
@@ -181,7 +204,7 @@ function Home() {
 
   const onClickDropGame = (player: Player) => {
     const { selectedCards } = player
-    table.games.push(selectedCards)
+    table.games.push({ id: uuidv4(), cards: selectedCards })
     player.deck.cards = player.deck.cards.filter(card => !player.selectedCards.includes(card))
     player.deck.remaining = player.deck.cards.length
     player.selectedCards = []
@@ -248,11 +271,20 @@ function Home() {
 
             <div className="games">
               {table.games.map(game => (
-                <div className="game" key={game[0].id}>
-                  {game.map(card => (
-                    <CardComponent key={card.id} card={card} />
-                  ))}
-                </div>
+                <Droppable droppableId={`game_${game.id}`} direction="horizontal" key={game.id}>
+                  {provided => (
+                    <div
+                      className="game"
+                      ref={provided.innerRef}
+                      // style={getListStyle(snapshot.isDraggingOver)}
+                      {...provided.droppableProps}
+                    >
+                      {game.cards.map(card => (
+                        <CardComponent key={card.id} card={card} />
+                      ))}
+                    </div>
+                  )}
+                </Droppable>
               ))}
             </div>
           </div>
@@ -267,7 +299,7 @@ function Home() {
               <button onClick={() => onClickDropGame(player)}>Baixar jogo</button>
               <button onClick={() => onClickTakeCard(player)}>Comprar carta</button>
             </span>
-            <Droppable droppableId={player.id} direction="horizontal">
+            <Droppable droppableId={`player_${player.id}`} direction="horizontal">
               {(provided, snapshot) => (
                 <div
                   className="deck"
