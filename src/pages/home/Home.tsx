@@ -27,7 +27,7 @@ const mapCardValue = (value: string): number => {
 function Home() {
   const [deck, setDeck] = useState<Deck>()
   const [players, setPlayers] = useState<Player[]>([])
-  const [table, setTable] = useState<Table>({ games: [], discarded: [] })
+  const [table, setTable] = useState<Table>({ games: [], discarded: [], selectedCards: [] })
 
   const start = async () => {
     console.log('iniciar...')
@@ -39,7 +39,7 @@ function Home() {
     const deck = { id: newDeck.deck_id, remaining: newDeck.remaining, cards: [] }
     setDeck({ ...deck })
 
-    const table: Table = { games: [], discarded: [] }
+    const table: Table = { games: [], discarded: [], selectedCards: [] }
     setTable({ ...table })
 
     const createPlayers = () => {
@@ -123,11 +123,13 @@ function Home() {
 
       if (card) {
         table.discarded.push(card)
+        table.selectedCards = []
         setTable({ ...table })
 
         if (player) {
           player.deck.cards = player.deck.cards.filter(c => c.id !== cardId)
           player.deck.remaining = player.deck.cards.length
+          player.selectedCards = []
           setPlayers([...players])
         }
       }
@@ -179,7 +181,7 @@ function Home() {
     // some basic styles to make the items look a bit nicer
     userSelect: 'none',
     // padding: grid * 2,
-    margin: `0 ${grid}px 0 0`,
+    // margin: `0 ${grid}px 0 0`,
 
     // change background colour if dragging
     background: isDragging ? 'transparent' : 'transparent',
@@ -206,20 +208,35 @@ function Home() {
     }
   }
 
+  const onClickDiscardedCard = (card: Card) => {
+    const { selectedCards } = table
+    if (selectedCards.includes(card)) {
+      table.selectedCards = selectedCards.filter(c => c !== card)
+      setTable({ ...table })
+    } else {
+      table.selectedCards.push(card)
+      setTable({ ...table })
+    }
+  }
+
   const onClickDropGame = (player: Player) => {
+    const { selectedCards: tableSelectedCards } = table
     const { selectedCards } = player
-    const validGame = isGameValid(selectedCards)
+    const validGame = isGameValid([...selectedCards, ...tableSelectedCards])
 
     if (!validGame) {
       return
     }
 
     table.games.push({ id: uuidv4(), cards: validGame })
+    table.discarded = table.discarded.filter(card => !table.selectedCards.includes(card))
+    table.selectedCards = []
+    setTable({ ...table })
+
     player.deck.cards = player.deck.cards.filter(card => !player.selectedCards.includes(card))
     player.deck.remaining = player.deck.cards.length
     player.selectedCards = []
     setPlayers([...players])
-    setTable({ ...table })
   }
 
   const onClickTakeCard = async (player: Player) => {
@@ -258,24 +275,27 @@ function Home() {
 
     const uniqueSuits = new Set(sortedCards.map(card => card.suit))
     if (uniqueSuits.size === 1) {
-      const validSequence = '1-2-3-4-5-6-7-8-9-10-11-12-13-14'
-      const values = sortedCards.map(card => card.value).join('-')
+      const validSequence = '01-02-03-04-05-06-07-08-09-10-11-12-13-14'
+      const values = sortedCards.map(card => card.value.toString().padStart(2, '0')).join('-')
       console.log(values)
 
       if (!validSequence.includes(values)) {
         const ace = sortedCards.find(card => card.value === 1)
+
+        if (!ace) {
+          return false
+        }
+
         if (ace) {
           ace.value = 14
           sortedCards = sortedCards.sort(sortByValue)
-          const values = sortedCards.map(card => card.value).join('-')
+          const values = sortedCards.map(card => card.value.toString().padStart(2, '0')).join('-')
           console.log(values)
 
           if (!validSequence.includes(values)) {
             return false
           }
         }
-
-        return false
       }
     } else if (uniqueSuits.size === 3) {
       const uniqueValues = new Set(sortedCards.map(card => card.value))
@@ -321,19 +341,20 @@ function Home() {
           </div>
         )}
 
-        {table && (
+        {deck && table && (
           <div id="table">
+            <div className="cards available">{deck.remaining > 0 && <CardComponent />}</div>
+
             <Droppable droppableId="discard" direction="horizontal">
-              {(provided, snapshot) => (
-                <div
-                  className="discarded"
-                  ref={provided.innerRef}
-                  style={getListStyle(snapshot.isDraggingOver)}
-                  {...provided.droppableProps}
-                >
+              {provided => (
+                <div className="cards discarded" ref={provided.innerRef} {...provided.droppableProps}>
                   {table.discarded.map(card => (
                     <div key={card.id}>
-                      <CardComponent card={card} />
+                      <CardComponent
+                        card={card}
+                        isSelected={table.selectedCards.includes(card)}
+                        onClick={() => onClickDiscardedCard(card)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -344,12 +365,7 @@ function Home() {
               {table.games.map(game => (
                 <Droppable droppableId={`game_${game.id}`} direction="horizontal" key={game.id}>
                   {provided => (
-                    <div
-                      className="game"
-                      ref={provided.innerRef}
-                      // style={getListStyle(snapshot.isDraggingOver)}
-                      {...provided.droppableProps}
-                    >
+                    <div className="game" ref={provided.innerRef} {...provided.droppableProps}>
                       {game.cards.map(card => (
                         <CardComponent key={card.id} card={card} />
                       ))}
