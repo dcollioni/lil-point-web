@@ -7,54 +7,27 @@ import Card from '../../models/Card'
 import CardComponent from './../../components/card/Card'
 import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd'
 import Table from '../../models/Table'
-const { fetch } = window
+import Turn from '../../models/Turn'
+import Match from '../../models/Match'
 
-const mapCardValue = (value: string): number => {
-  switch (value) {
-    case 'ACE':
-      return 1
-    case 'JACK':
-      return 11
-    case 'QUEEN':
-      return 12
-    case 'KING':
-      return 13
-    default:
-      return parseInt(value, 10)
-  }
-}
+let match: Match
 
 function Home() {
   const [deck, setDeck] = useState<Deck>()
   const [players, setPlayers] = useState<Player[]>([])
   const [table, setTable] = useState<Table>({ games: [], discarded: [], selectedCards: [] })
+  const [turn, setTurn] = useState<Turn>()
 
   const start = async () => {
-    console.log('iniciar...')
-
-    const response = await fetch('https://deckofcardsapi.com/api/deck/new/shuffle/?deck_count=2')
-    const newDeck = await response.json()
-    console.log(newDeck)
-
-    const deck = { id: newDeck.deck_id, remaining: newDeck.remaining, cards: [] }
-    setDeck({ ...deck })
+    const deck = await new Deck().shuffle()
+    setDeck(deck)
 
     const table: Table = { games: [], discarded: [], selectedCards: [] }
     setTable({ ...table })
 
     const createPlayers = () => {
-      const player1: Player = {
-        id: uuidv4(),
-        name: 'Player 1',
-        deck: { id: uuidv4(), remaining: 0, cards: [] },
-        selectedCards: [],
-      }
-      const player2: Player = {
-        id: uuidv4(),
-        name: 'Player 2',
-        deck: { id: uuidv4(), remaining: 0, cards: [] },
-        selectedCards: [],
-      }
+      const player1 = new Player('Player1')
+      const player2 = new Player('Player2')
       return [player1, player2]
     }
 
@@ -62,31 +35,16 @@ function Home() {
     setPlayers(players)
 
     const assignPlayersCards = async () => {
-      const totalOfCards = 11
+      const totalOfCards = 3
 
-      while (players[0].deck.remaining < totalOfCards || players[1].deck.remaining < totalOfCards) {
+      while (players[0].numberOfCards < totalOfCards || players[1].numberOfCards < totalOfCards) {
         for (const player of players) {
-          if (player.deck.remaining < totalOfCards) {
-            const response = await fetch(`https://deckofcardsapi.com/api/deck/${deck?.id}/draw/?count=1`)
-            if (response.ok) {
-              const { cards, remaining } = await response.json()
-              const drawnCard = cards[0]
-
-              const card: Card = {
-                id: uuidv4(),
-                code: drawnCard.code,
-                image: drawnCard.image,
-                name: drawnCard.value,
-                suit: drawnCard.suit,
-                value: mapCardValue(drawnCard.value),
-              }
-
-              player.deck.cards.push(card)
-              player.deck.remaining = player.deck.cards.length
-
-              if (deck) {
-                deck.remaining = remaining
-              }
+          if (player.numberOfCards < totalOfCards) {
+            try {
+              const card = await deck.drawCard()
+              player.cards.push(card)
+            } catch (err) {
+              console.error(err)
             }
           }
         }
@@ -94,15 +52,17 @@ function Home() {
     }
 
     await assignPlayersCards()
+    setDeck(deck)
 
-    setDeck({ ...deck, remaining: deck.remaining })
+    match = new Match(players)
+    const turn = match.startMatch()
+    setTurn({ ...turn })
   }
 
   const reorder = (list: Card[], startIndex: number, endIndex: number) => {
     const result = Array.from(list)
     const [removed] = result.splice(startIndex, 1)
     result.splice(endIndex, 0, removed)
-
     return result
   }
 
@@ -112,27 +72,11 @@ function Home() {
       return
     }
 
-    console.log(result)
     let { droppableId } = result.destination
 
     if (droppableId === 'discard') {
       const cardId = result.draggableId
-      const playerId = result.source.droppableId.split('_')[1]
-      const player = players.find(p => p.id === playerId)
-      const card = player?.deck.cards.find(c => c.id === cardId)
-
-      if (card) {
-        table.discarded.push(card)
-        table.selectedCards = []
-        setTable({ ...table })
-
-        if (player) {
-          player.deck.cards = player.deck.cards.filter(c => c.id !== cardId)
-          player.deck.remaining = player.deck.cards.length
-          player.selectedCards = []
-          setPlayers([...players])
-        }
-      }
+      discard(cardId)
       return
     }
 
@@ -140,35 +84,63 @@ function Home() {
       droppableId = droppableId.split('_')[1]
       const player = players.find(p => p.id === droppableId)
       if (player) {
-        player.deck.cards = reorder(player.deck.cards, result.source.index, result.destination.index)
+        player.cards = reorder(player.cards, result.source.index, result.destination.index)
       }
       return
     }
 
     if (droppableId.startsWith('game')) {
-      droppableId = droppableId.split('_')[1]
-      const game = table.games.find(g => g.id === droppableId)
-
       const cardId = result.draggableId
-      const playerId = result.source.droppableId.split('_')[1]
-      const player = players.find(p => p.id === playerId)
-      const card = player?.deck.cards.find(c => c.id === cardId)
+      const gameId = droppableId.split('_')[1]
+      dropCard(cardId, gameId)
+      return
+    }
+  }
 
-      if (game && card) {
-        const newGame = [...game.cards, card]
-        const validGame = isGameValid(newGame)
-        if (validGame) {
-          game.cards = validGame
-          setTable({ ...table })
+  const discard = (cardId: string) => {
+    if (!turn || !turn.canDrop) {
+      return
+    }
 
-          if (player) {
-            player.deck.cards = player.deck.cards.filter(c => c.id !== cardId)
-            player.deck.remaining = player.deck.cards.length
-            setPlayers([...players])
-          }
+    const { player } = turn
+    const card = player.cards.find(c => c.id === cardId)
+
+    if (card) {
+      table.discarded.push(card)
+      table.selectedCards = []
+      setTable({ ...table })
+
+      player.cards = player.cards.filter(c => c.id !== cardId)
+      player.selectedCards = []
+      setPlayers([...players])
+
+      const turn = match.nextTurn()
+      setTurn({ ...turn })
+    }
+  }
+
+  const dropCard = (cardId: string, gameId: string) => {
+    if (!turn?.canDrop) {
+      return
+    }
+
+    const game = table.games.find(g => g.id === gameId)
+
+    const { player } = turn
+    const card = player.cards.find(c => c.id === cardId)
+
+    if (game && card) {
+      const newGame = [...game.cards, card]
+      const validGame = isGameValid(newGame)
+      if (validGame) {
+        game.cards = validGame
+        setTable({ ...table })
+
+        if (player) {
+          player.cards = player.cards.filter(c => c.id !== cardId)
+          setPlayers([...players])
         }
       }
-      return
     }
   }
 
@@ -210,12 +182,26 @@ function Home() {
 
   const onClickDiscardedCard = (card: Card) => {
     const { selectedCards } = table
-    if (selectedCards.includes(card)) {
-      table.selectedCards = selectedCards.filter(c => c !== card)
-      setTable({ ...table })
-    } else {
+
+    if (selectedCards.length === 0) {
+      if (!turn?.canBuy) {
+        return
+      }
       table.selectedCards.push(card)
       setTable({ ...table })
+
+      turn.canBuy = false
+      turn.canDrop = true
+      setTurn({ ...turn })
+    } else if (selectedCards.includes(card)) {
+      table.selectedCards = selectedCards.filter(c => c !== card)
+      setTable({ ...table })
+
+      if (turn) {
+        turn.canBuy = true
+        turn.canDrop = false
+        setTurn({ ...turn })
+      }
     }
   }
 
@@ -233,35 +219,36 @@ function Home() {
     table.selectedCards = []
     setTable({ ...table })
 
-    player.deck.cards = player.deck.cards.filter(card => !player.selectedCards.includes(card))
-    player.deck.remaining = player.deck.cards.length
+    player.cards = player.cards.filter(card => !player.selectedCards.includes(card))
     player.selectedCards = []
     setPlayers([...players])
   }
 
-  const onClickTakeCard = async (player: Player) => {
-    const response = await fetch(`https://deckofcardsapi.com/api/deck/${deck?.id}/draw/?count=1`)
-    if (response.ok) {
-      const { cards, remaining } = await response.json()
-      const drawnCard = cards[0]
+  const onClickBuyCard = async () => {
+    if (!turn) {
+      return
+    }
 
-      const card: Card = {
-        id: uuidv4(),
-        code: drawnCard.code,
-        image: drawnCard.image,
-        name: drawnCard.value,
-        suit: drawnCard.suit,
-        value: mapCardValue(drawnCard.value),
-      }
+    if (!turn.canBuy) {
+      return
+    }
 
-      player.deck.cards.push(card)
-      player.deck.remaining = player.deck.cards.length
+    if (!deck) {
+      return
+    }
+
+    try {
+      const card = await deck.drawCard()
+      turn.player.cards.push(card)
       setPlayers([...players])
 
-      if (deck) {
-        deck.remaining = remaining
-        setDeck({ ...deck })
-      }
+      turn.canBuy = false
+      turn.canDrop = true
+      setTurn({ ...turn })
+
+      setDeck(deck)
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -343,11 +330,17 @@ function Home() {
 
         {deck && table && (
           <div id="table">
-            <div className="cards available">{deck.remaining > 0 && <CardComponent />}</div>
+            <div className={`cards available ${turn?.canBuy ? '' : 'disabled'}`}>
+              {deck.remaining > 0 && <CardComponent onClick={() => onClickBuyCard()} />}
+            </div>
 
             <Droppable droppableId="discard" direction="horizontal">
               {provided => (
-                <div className="cards discarded" ref={provided.innerRef} {...provided.droppableProps}>
+                <div
+                  className={`cards discarded ${turn?.canBuy ? '' : 'disabled'}`}
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                >
                   {table.discarded.map(card => (
                     <div key={card.id}>
                       <CardComponent
@@ -377,16 +370,17 @@ function Home() {
           </div>
         )}
 
-        {players.map(player => (
-          <div key={player.id} className="player">
+        {turn && (
+          <div key={turn.player.id} className="player">
             <span>
-              {player.name} ({player.deck.remaining} cartas)
+              {turn.player.name} ({turn.player.numberOfCards} cartas)
             </span>
             <span>
-              <button onClick={() => onClickDropGame(player)}>Baixar jogo</button>
-              <button onClick={() => onClickTakeCard(player)}>Comprar carta</button>
+              <button onClick={() => onClickDropGame(turn.player)} disabled={!turn.canDrop}>
+                Baixar jogo
+              </button>
             </span>
-            <Droppable droppableId={`player_${player.id}`} direction="horizontal">
+            <Droppable droppableId={`player_${turn.player.id}`} direction="horizontal">
               {(provided, snapshot) => (
                 <div
                   className="deck"
@@ -394,7 +388,7 @@ function Home() {
                   style={getListStyle(snapshot.isDraggingOver)}
                   {...provided.droppableProps}
                 >
-                  {player.deck.cards.map((card, index) => (
+                  {turn.player.cards.map((card, index) => (
                     <Draggable key={card.id} draggableId={card.id} index={index}>
                       {(provided, snapshot) => (
                         <div
@@ -406,8 +400,8 @@ function Home() {
                         >
                           <CardComponent
                             card={card}
-                            isSelected={player.selectedCards.includes(card)}
-                            onClick={() => onClickCard(player, card)}
+                            isSelected={turn.player.selectedCards.includes(card)}
+                            onClick={() => onClickCard(turn.player, card)}
                           />
                         </div>
                       )}
@@ -417,7 +411,7 @@ function Home() {
               )}
             </Droppable>
           </div>
-        ))}
+        )}
       </div>
     </DragDropContext>
   )
