@@ -2,6 +2,16 @@
 
 .home {
   background-color: $background-color;
+
+  .match {
+    span {
+      background-color: #fff;
+      border-radius: 4px;
+      border: 1px solid #444;
+      margin-right: 20px;
+      padding: 5px 20px;
+    }
+  }
 }
 
 .games {

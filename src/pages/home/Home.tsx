@@ -1,62 +1,32 @@
 import React, { CSSProperties, useState } from 'react'
-import Deck from '../../models/Deck'
 import './home.scss'
-import { v4 as uuidv4 } from 'uuid'
 import Player from '../../models/Player'
 import Card from '../../models/Card'
 import CardComponent from './../../components/card/Card'
 import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd'
-import Table from '../../models/Table'
-import Turn from '../../models/Turn'
-import Match from '../../models/Match'
+import { Match, IMatch } from '../../models/Match'
+import { MatchRound, IMatchRound } from '../../models/MatchRound'
 
 let match: Match
+let round: MatchRound
 
 function Home() {
-  const [deck, setDeck] = useState<Deck>()
-  const [players, setPlayers] = useState<Player[]>([])
-  const [table, setTable] = useState<Table>({ games: [], discarded: [], selectedCards: [] })
-  const [turn, setTurn] = useState<Turn>()
+  const [matchData, setMatchData] = useState<IMatch>()
+  const [roundData, setRoundData] = useState<IMatchRound>()
 
   const start = async () => {
-    const deck = await new Deck().shuffle()
-    setDeck(deck)
+    match = await new Match(['PlayerA', 'PlayerB']).start()
+    round = match.currentRound
 
-    const table: Table = { games: [], discarded: [], selectedCards: [] }
-    setTable({ ...table })
+    setMatchData({ ...match })
+    setRoundData({ ...round })
+  }
 
-    const createPlayers = () => {
-      const player1 = new Player('Player1')
-      const player2 = new Player('Player2')
-      return [player1, player2]
-    }
+  const nextRound = async () => {
+    round = await match.nextRound()
 
-    const players = createPlayers()
-    setPlayers(players)
-
-    const assignPlayersCards = async () => {
-      const totalOfCards = 3
-
-      while (players[0].numberOfCards < totalOfCards || players[1].numberOfCards < totalOfCards) {
-        for (const player of players) {
-          if (player.numberOfCards < totalOfCards) {
-            try {
-              const card = await deck.drawCard()
-              player.cards.push(card)
-            } catch (err) {
-              console.error(err)
-            }
-          }
-        }
-      }
-    }
-
-    await assignPlayersCards()
-    setDeck(deck)
-
-    match = new Match(players)
-    const turn = match.startMatch()
-    setTurn({ ...turn })
+    setMatchData({ ...match })
+    setRoundData({ ...round })
   }
 
   const reorder = (list: Card[], startIndex: number, endIndex: number) => {
@@ -82,7 +52,7 @@ function Home() {
 
     if (droppableId.startsWith('player')) {
       droppableId = droppableId.split('_')[1]
-      const player = players.find(p => p.id === droppableId)
+      const player = match?.players.find(p => p.id === droppableId)
       if (player) {
         player.cards = reorder(player.cards, result.source.index, result.destination.index)
       }
@@ -97,51 +67,22 @@ function Home() {
     }
   }
 
-  const discard = (cardId: string) => {
-    if (!turn || !turn.canDrop) {
+  const discard = async (cardId: string) => {
+    if (!round) {
       return
     }
 
-    const { player } = turn
-    const card = player.cards.find(c => c.id === cardId)
-
-    if (card) {
-      table.discarded.push(card)
-      table.selectedCards = []
-      setTable({ ...table })
-
-      player.cards = player.cards.filter(c => c.id !== cardId)
-      player.selectedCards = []
-      setPlayers([...players])
-
-      const turn = match.nextTurn()
-      setTurn({ ...turn })
-    }
+    await round.playerDiscardCard(cardId)
+    setRoundData({ ...round })
   }
 
   const dropCard = (cardId: string, gameId: string) => {
-    if (!turn?.canDrop) {
+    if (!round) {
       return
     }
 
-    const game = table.games.find(g => g.id === gameId)
-
-    const { player } = turn
-    const card = player.cards.find(c => c.id === cardId)
-
-    if (game && card) {
-      const newGame = [...game.cards, card]
-      const validGame = isGameValid(newGame)
-      if (validGame) {
-        game.cards = validGame
-        setTable({ ...table })
-
-        if (player) {
-          player.cards = player.cards.filter(c => c.id !== cardId)
-          setPlayers([...players])
-        }
-      }
-    }
+    round.playerDropCard(cardId, gameId)
+    setRoundData({ ...round })
   }
 
   const grid = 8
@@ -170,182 +111,95 @@ function Home() {
   })
 
   const onClickCard = (player: Player, card: Card) => {
+    if (!round) {
+      return
+    }
+
     const { selectedCards } = player
     if (selectedCards.includes(card)) {
       player.selectedCards = selectedCards.filter(c => c !== card)
-      setPlayers([...players])
+      setRoundData({ ...round })
+      // setPlayers([...players])
     } else {
       player.selectedCards.push(card)
-      setPlayers([...players])
+      // setPlayers([...players])
+      setRoundData({ ...round })
     }
   }
 
   const onClickDiscardedCard = (card: Card) => {
-    const { selectedCards } = table
-
-    if (selectedCards.length === 0) {
-      if (!turn?.canBuy) {
-        return
-      }
-      table.selectedCards.push(card)
-      setTable({ ...table })
-
-      turn.canBuy = false
-      turn.canDrop = true
-      setTurn({ ...turn })
-    } else if (selectedCards.includes(card)) {
-      table.selectedCards = selectedCards.filter(c => c !== card)
-      setTable({ ...table })
-
-      if (turn) {
-        turn.canBuy = true
-        turn.canDrop = false
-        setTurn({ ...turn })
-      }
-    }
-  }
-
-  const onClickDropGame = (player: Player) => {
-    const { selectedCards: tableSelectedCards } = table
-    const { selectedCards } = player
-    const validGame = isGameValid([...selectedCards, ...tableSelectedCards])
-
-    if (!validGame) {
+    if (!round) {
       return
     }
 
-    table.games.push({ id: uuidv4(), cards: validGame })
-    table.discarded = table.discarded.filter(card => !table.selectedCards.includes(card))
-    table.selectedCards = []
-    setTable({ ...table })
+    round.selectDiscardedCard(card)
+    setRoundData({ ...round })
+  }
 
-    player.cards = player.cards.filter(card => !player.selectedCards.includes(card))
-    player.selectedCards = []
-    setPlayers([...players])
+  const onClickDropGame = () => {
+    if (!round) {
+      return
+    }
+
+    round.playerDropGame()
+    setRoundData({ ...round })
   }
 
   const onClickBuyCard = async () => {
-    if (!turn) {
+    if (!round) {
       return
     }
 
-    if (!turn.canBuy) {
-      return
-    }
-
-    if (!deck) {
-      return
-    }
-
-    try {
-      const card = await deck.drawCard()
-      turn.player.cards.push(card)
-      setPlayers([...players])
-
-      turn.canBuy = false
-      turn.canDrop = true
-      setTurn({ ...turn })
-
-      setDeck(deck)
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  const isGameValid = (cards: Card[]) => {
-    if (cards.length < 3) {
-      return false
-    }
-
-    let sortedCards = [...cards].sort(sortBySuit).sort(sortByValue)
-    console.log(sortedCards)
-
-    const uniqueSuits = new Set(sortedCards.map(card => card.suit))
-    if (uniqueSuits.size === 1) {
-      const validSequence = '01-02-03-04-05-06-07-08-09-10-11-12-13-14'
-      const values = sortedCards.map(card => card.value.toString().padStart(2, '0')).join('-')
-      console.log(values)
-
-      if (!validSequence.includes(values)) {
-        const ace = sortedCards.find(card => card.value === 1)
-
-        if (!ace) {
-          return false
-        }
-
-        if (ace) {
-          ace.value = 14
-          sortedCards = sortedCards.sort(sortByValue)
-          const values = sortedCards.map(card => card.value.toString().padStart(2, '0')).join('-')
-          console.log(values)
-
-          if (!validSequence.includes(values)) {
-            return false
-          }
-        }
-      }
-    } else if (uniqueSuits.size === 3) {
-      const uniqueValues = new Set(sortedCards.map(card => card.value))
-      if (uniqueValues.size > 1) {
-        return false
-      }
-    } else {
-      return false
-    }
-
-    return sortedCards
-  }
-
-  const sortBySuit = (a: Card, b: Card) => {
-    if (a.suit < b.suit) {
-      return -1
-    }
-    if (a.suit > b.suit) {
-      return 1
-    }
-    return 0
-  }
-
-  const sortByValue = (a: Card, b: Card) => {
-    if (a.value < b.value) {
-      return -1
-    }
-    if (a.value > b.value) {
-      return 1
-    }
-    return 0
+    await round.playerBuyCard()
+    setRoundData({ ...round })
   }
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="home">
         <h2>Home</h2>
-        <button onClick={start}>Iniciar</button>
 
-        {deck && (
-          <div id="deck">
-            <p>Cartas restantes: {deck.remaining}</p>
+        {!matchData && <button onClick={start}>Iniciar</button>}
+
+        {matchData && (
+          <div className="match">
+            <p>
+              <span>Rounds: {matchData.rounds.length}</span>
+              {matchData.players.map(player => (
+                <span key={player.id}>
+                  {player.name} - pontos: {player.score}
+                </span>
+              ))}
+            </p>
           </div>
         )}
 
-        {deck && table && (
+        {roundData?.hasEnded && <button onClick={nextRound}>Próximo round</button>}
+
+        {roundData?.deck && (
+          <div id="deck">
+            <p>Cartas restantes: {roundData.deck.remaining}</p>
+          </div>
+        )}
+
+        {roundData?.deck && roundData?.table && (
           <div id="table">
-            <div className={`cards available ${turn?.canBuy ? '' : 'disabled'}`}>
-              {deck.remaining > 0 && <CardComponent onClick={() => onClickBuyCard()} />}
+            <div className={`cards available ${roundData.turn.canBuy ? '' : 'disabled'}`}>
+              {roundData.deck.remaining > 0 && <CardComponent onClick={() => onClickBuyCard()} />}
             </div>
 
             <Droppable droppableId="discard" direction="horizontal">
               {provided => (
                 <div
-                  className={`cards discarded ${turn?.canBuy ? '' : 'disabled'}`}
+                  className={`cards discarded ${roundData.turn.canBuy ? '' : 'disabled'}`}
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                 >
-                  {table.discarded.map(card => (
+                  {roundData.table.discarded.map(card => (
                     <div key={card.id}>
                       <CardComponent
                         card={card}
-                        isSelected={table.selectedCards.includes(card)}
+                        isSelected={roundData.table.selectedCards.includes(card)}
                         onClick={() => onClickDiscardedCard(card)}
                       />
                     </div>
@@ -355,7 +209,7 @@ function Home() {
             </Droppable>
 
             <div className="games">
-              {table.games.map(game => (
+              {roundData.table.games.map(game => (
                 <Droppable droppableId={`game_${game.id}`} direction="horizontal" key={game.id}>
                   {provided => (
                     <div className="game" ref={provided.innerRef} {...provided.droppableProps}>
@@ -370,17 +224,17 @@ function Home() {
           </div>
         )}
 
-        {turn && (
-          <div key={turn.player.id} className="player">
+        {roundData?.turn && (
+          <div key={roundData.turn.player.id} className="player">
             <span>
-              {turn.player.name} ({turn.player.numberOfCards} cartas)
+              {roundData.turn.player.name} ({roundData.turn.player.numberOfCards} cartas)
             </span>
             <span>
-              <button onClick={() => onClickDropGame(turn.player)} disabled={!turn.canDrop}>
+              <button onClick={() => onClickDropGame()} disabled={!roundData.turn.canDrop}>
                 Baixar jogo
               </button>
             </span>
-            <Droppable droppableId={`player_${turn.player.id}`} direction="horizontal">
+            <Droppable droppableId={`player_${roundData.turn.player.id}`} direction="horizontal">
               {(provided, snapshot) => (
                 <div
                   className="deck"
@@ -388,7 +242,7 @@ function Home() {
                   style={getListStyle(snapshot.isDraggingOver)}
                   {...provided.droppableProps}
                 >
-                  {turn.player.cards.map((card, index) => (
+                  {roundData.turn.player.cards.map((card, index) => (
                     <Draggable key={card.id} draggableId={card.id} index={index}>
                       {(provided, snapshot) => (
                         <div
@@ -400,8 +254,8 @@ function Home() {
                         >
                           <CardComponent
                             card={card}
-                            isSelected={turn.player.selectedCards.includes(card)}
-                            onClick={() => onClickCard(turn.player, card)}
+                            isSelected={roundData.turn.player.selectedCards.includes(card)}
+                            onClick={() => onClickCard(roundData.turn.player, card)}
                           />
                         </div>
                       )}

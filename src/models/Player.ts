@@ -6,12 +6,14 @@ class Player {
   name: string
   cards: Card[]
   selectedCards: Card[]
+  score: number
 
   constructor(name: string) {
     this.id = uuidv4()
     this.name = name
     this.cards = []
     this.selectedCards = []
+    this.score = 0
   }
 
   public get numberOfCards(): number {

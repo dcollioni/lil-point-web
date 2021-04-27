@@ -1,37 +1,33 @@
+import { MatchRound } from './MatchRound'
 import Player from './Player'
-import Turn from './Turn'
 
-class Match {
-  private players: Player[]
-  private playerIndex: number
-
-  constructor(players: Player[]) {
-    this.players = players
-    this.playerIndex = 0
-  }
-
-  startMatch(): Turn {
-    return {
-      player: this.players[this.playerIndex],
-      canBuy: true,
-      canDrop: false,
-      canDiscard: false,
-    }
-  }
-
-  nextTurn(): Turn {
-    this.playerIndex++
-    if (this.playerIndex === this.players.length) {
-      this.playerIndex = 0
-    }
-
-    return {
-      player: this.players[this.playerIndex],
-      canBuy: true,
-      canDrop: false,
-      canDiscard: false,
-    }
-  }
+export interface IMatch {
+  players: Player[]
+  rounds: MatchRound[]
 }
 
-export default Match
+export class Match implements IMatch {
+  players: Player[]
+  rounds: MatchRound[]
+
+  constructor(playersNames: string[]) {
+    this.players = playersNames.map(name => new Player(name))
+    this.rounds = []
+  }
+
+  public get currentRound(): MatchRound {
+    return this.rounds[this.rounds.length - 1]
+  }
+
+  async start(): Promise<Match> {
+    const round = await new MatchRound(this.players, 11).start()
+    this.rounds.push(round)
+    return this
+  }
+
+  async nextRound(): Promise<MatchRound> {
+    const round = await new MatchRound(this.players, 11).start()
+    this.rounds.push(round)
+    return round
+  }
+}
