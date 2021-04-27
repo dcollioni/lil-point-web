@@ -72,7 +72,7 @@ function Home() {
       return
     }
 
-    await round.playerDiscardCard(cardId)
+    round.playerDiscardCard(cardId)
     setRoundData({ ...round })
   }
 
@@ -154,6 +154,19 @@ function Home() {
     setRoundData({ ...round })
   }
 
+  const onClickDiscard = () => {
+    if (!round) {
+      return
+    }
+
+    const { selectedCards } = round.turn.player
+    if (selectedCards.length === 1) {
+      const cardId = selectedCards[0].id
+      round.playerDiscardCard(cardId)
+      setRoundData({ ...round })
+    }
+  }
+
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="home">
@@ -229,9 +242,24 @@ function Home() {
             <span>
               {roundData.turn.player.name} ({roundData.turn.player.numberOfCards} cartas)
             </span>
-            <span>
-              <button onClick={() => onClickDropGame()} disabled={!roundData.turn.canDrop}>
+            <span className="buttons">
+              <button onClick={() => onClickBuyCard()} disabled={!roundData.turn.canBuy}>
+                Comprar carta
+              </button>
+              <button
+                onClick={() => onClickDropGame()}
+                disabled={
+                  !roundData.turn.canDrop ||
+                  roundData.turn.player.selectedCards.length + roundData.table.selectedCards.length < 3
+                }
+              >
                 Baixar jogo
+              </button>
+              <button
+                onClick={() => onClickDiscard()}
+                disabled={!roundData.turn.canDiscard || roundData.turn.player.selectedCards.length !== 1}
+              >
+                Descartar
               </button>
             </span>
             <Droppable droppableId={`player_${roundData.turn.player.id}`} direction="horizontal">

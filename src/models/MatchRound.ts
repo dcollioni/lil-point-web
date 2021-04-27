@@ -68,15 +68,16 @@ export class MatchRound implements IMatchRound {
 
       this.turn.canBuy = false
       this.turn.canDrop = true
+      this.turn.canDiscard = true
     } catch (err) {
       console.error(err)
     }
   }
 
-  async playerDiscardCard(cardId: string): Promise<void> {
+  playerDiscardCard(cardId: string): void {
     const { turn, table } = this
 
-    if (!turn.canDrop) {
+    if (!turn.canDiscard) {
       return
     }
 
@@ -104,6 +105,10 @@ export class MatchRound implements IMatchRound {
       table,
     } = this
 
+    if (!this.turn.canDrop) {
+      return
+    }
+
     const { selectedCards: tableSelectedCards } = table
     const { selectedCards } = player
     const game = new Game([...selectedCards, ...tableSelectedCards])
@@ -111,6 +116,8 @@ export class MatchRound implements IMatchRound {
     if (!game.isValid()) {
       return
     }
+
+    this.turn.canDiscard = true
 
     table.games.push(game)
     table.discarded = table.discarded.filter(card => !table.selectedCards.includes(card))
@@ -165,8 +172,6 @@ export class MatchRound implements IMatchRound {
     const {
       turn: { player },
     } = this
-
-    console.log('checking turn result')
 
     if (player.numberOfCards === 0) {
       this.hasEnded = true
