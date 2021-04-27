@@ -24,9 +24,15 @@
 
 .games {
   .game {
+    border: 1px dashed transparent;
     display: inline-block;
     margin-right: 100px;
     padding-right: 60px;
+
+    &:not(.disabled):hover {
+      cursor: pointer;
+      border-color: #000;
+    }
 
     .card {
       margin-right: -60px;

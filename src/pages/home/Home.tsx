@@ -13,6 +13,7 @@ let round: MatchRound
 function Home() {
   const [matchData, setMatchData] = useState<IMatch>()
   const [roundData, setRoundData] = useState<IMatchRound>()
+  const [showPlayerCards, setShowPlayerCards] = useState<boolean>(false)
 
   const start = async () => {
     match = await new Match(['PlayerA', 'PlayerB']).start()
@@ -72,8 +73,12 @@ function Home() {
       return
     }
 
-    round.playerDiscardCard(cardId)
+    const discarded = round.playerDiscardCard(cardId)
     setRoundData({ ...round })
+
+    if (discarded) {
+      setShowPlayerCards(false)
+    }
   }
 
   const dropCard = (cardId: string, gameId: string) => {
@@ -81,7 +86,7 @@ function Home() {
       return
     }
 
-    round.playerDropCard(cardId, gameId)
+    round.playerDropCard([cardId], gameId)
     setRoundData({ ...round })
   }
 
@@ -162,9 +167,28 @@ function Home() {
     const { selectedCards } = round.turn.player
     if (selectedCards.length === 1) {
       const cardId = selectedCards[0].id
-      round.playerDiscardCard(cardId)
+      const discarded = round.playerDiscardCard(cardId)
       setRoundData({ ...round })
+
+      if (discarded) {
+        setShowPlayerCards(false)
+      }
     }
+  }
+
+  const onClickGame = (gameId: string) => {
+    if (!round) {
+      return
+    }
+
+    const { turn } = round
+    const cardsIds = turn.player.selectedCards.map(card => card.id)
+    round.playerDropCard(cardsIds, gameId)
+    setRoundData({ ...round })
+  }
+
+  const onClickToggleCards = () => {
+    setShowPlayerCards(!showPlayerCards)
   }
 
   return (
@@ -225,7 +249,14 @@ function Home() {
               {roundData.table.games.map(game => (
                 <Droppable droppableId={`game_${game.id}`} direction="horizontal" key={game.id}>
                   {provided => (
-                    <div className="game" ref={provided.innerRef} {...provided.droppableProps}>
+                    <div
+                      className={`game ${
+                        !roundData.turn.canDrop || roundData.turn.player.selectedCards.length === 0 ? 'disabled' : ''
+                      }`}
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      onClick={() => onClickGame(game.id)}
+                    >
                       {game.cards.map(card => (
                         <CardComponent key={card.id} card={card} />
                       ))}
@@ -243,6 +274,7 @@ function Home() {
               {roundData.turn.player.name} ({roundData.turn.player.numberOfCards} cartas)
             </span>
             <span className="buttons">
+              <button onClick={() => onClickToggleCards()}>Mostrar/Esconder cartas</button>
               <button onClick={() => onClickBuyCard()} disabled={!roundData.turn.canBuy}>
                 Comprar carta
               </button>
@@ -270,25 +302,26 @@ function Home() {
                   style={getListStyle(snapshot.isDraggingOver)}
                   {...provided.droppableProps}
                 >
-                  {roundData.turn.player.cards.map((card, index) => (
-                    <Draggable key={card.id} draggableId={card.id} index={index}>
-                      {(provided, snapshot) => (
-                        <div
-                          key={card.id}
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          style={getItemStyle(snapshot.isDragging, provided.draggableProps.style)}
-                        >
-                          <CardComponent
-                            card={card}
-                            isSelected={roundData.turn.player.selectedCards.includes(card)}
-                            onClick={() => onClickCard(roundData.turn.player, card)}
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
+                  {showPlayerCards &&
+                    roundData.turn.player.cards.map((card, index) => (
+                      <Draggable key={card.id} draggableId={card.id} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            key={card.id}
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            style={getItemStyle(snapshot.isDragging, provided.draggableProps.style)}
+                          >
+                            <CardComponent
+                              card={card}
+                              isSelected={roundData.turn.player.selectedCards.includes(card)}
+                              onClick={() => onClickCard(roundData.turn.player, card)}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
                 </div>
               )}
             </Droppable>

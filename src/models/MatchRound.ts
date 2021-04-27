@@ -74,11 +74,11 @@ export class MatchRound implements IMatchRound {
     }
   }
 
-  playerDiscardCard(cardId: string): void {
+  playerDiscardCard(cardId: string): boolean {
     const { turn, table } = this
 
     if (!turn.canDiscard) {
-      return
+      return false
     }
 
     const { player } = turn
@@ -95,8 +95,11 @@ export class MatchRound implements IMatchRound {
 
       if (!this.hasEnded) {
         this.nextTurn()
+        return true
       }
     }
+
+    return false
   }
 
   playerDropGame(): void {
@@ -128,7 +131,7 @@ export class MatchRound implements IMatchRound {
     this.checkTurnResult()
   }
 
-  playerDropCard = (cardId: string, gameId: string) => {
+  playerDropCard = (cardsIds: string[], gameId: string) => {
     const { turn, table } = this
 
     if (!turn.canDrop) {
@@ -137,14 +140,15 @@ export class MatchRound implements IMatchRound {
 
     const { player } = turn
     const game = table.games.find(g => g.id === gameId)
-    const card = player.cards.find(c => c.id === cardId)
+    const cards = player.cards.filter(c => cardsIds.includes(c.id))
 
-    if (game && card) {
-      const newGame = new Game([...game.cards, card])
+    if (game && cards.length > 0) {
+      const newGame = new Game([...game.cards, ...cards])
 
       if (newGame.isValid()) {
         game.cards = newGame.cards
-        player.cards = player.cards.filter(c => c.id !== cardId)
+        player.cards = player.cards.filter(c => !cardsIds.includes(c.id))
+        player.selectedCards = []
         this.checkTurnResult()
       }
     }
