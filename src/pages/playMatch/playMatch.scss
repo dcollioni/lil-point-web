@@ -1,20 +1,7 @@
 @import './../../base';
 
-.home {
+.play-match {
   background-color: $background-color;
-
-  .create-match {
-    span {
-      margin-left: 20px;
-    }
-  }
-
-  .join-match {
-    input {
-      margin-right: 10px;
-      width: 350px;
-    }
-  }
 
   .match {
     span {

@@ -1,5 +1,5 @@
-import React, { CSSProperties, FormEvent, useState } from 'react'
-import './home.scss'
+import React, { CSSProperties, useState } from 'react'
+import './playMatch.scss'
 import Player from '../../models/Player'
 import Card from '../../models/Card'
 import CardComponent from './../../components/card/Card'
@@ -7,15 +7,10 @@ import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDr
 import { Match, IMatch } from '../../models/Match'
 import { MatchRound, IMatchRound } from '../../models/MatchRound'
 
-let ws: WebSocket
 let match: Match
 let round: MatchRound
 
-function Home() {
-  const [matchId, setMatchId] = useState('')
-  const [joinMatchId, setJoinMatchId] = useState('')
-  const [playerName, setPlayerName] = useState('')
-
+function PlayMatch() {
   const [matchData, setMatchData] = useState<IMatch>()
   const [roundData, setRoundData] = useState<IMatchRound>()
   const [showPlayerCards, setShowPlayerCards] = useState<boolean>(false)
@@ -196,87 +191,12 @@ function Home() {
     setShowPlayerCards(!showPlayerCards)
   }
 
-  const createMatch = async (e: FormEvent) => {
-    e.preventDefault()
-    const payload = { numberOfPlayers: 2 }
-
-    const res = await fetch('http://localhost:3001/match', {
-      method: 'post',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-    const match = await res.json()
-    console.log(match)
-
-    setMatchId(match.id)
-  }
-
-  const joinMatch = async (e: FormEvent) => {
-    e.preventDefault()
-    const payload = { name: playerName }
-
-    const res = await fetch(`http://localhost:3001/match/${joinMatchId}/join`, {
-      method: 'post',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-    const player = await res.json()
-    console.log(player)
-
-    ws = new WebSocket('ws://localhost:8080', joinMatchId)
-
-    ws.onopen = () => {
-      const connectMessage = {
-        type: 'CONNECT',
-        payload: {
-          matchId: joinMatchId,
-          playerId: player.id,
-        },
-      }
-
-      ws.send(JSON.stringify(connectMessage))
-    }
-
-    ws.onmessage = e => {
-      console.log(e.data)
-    }
-  }
-
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="home">
-        <h2>Home</h2>
+      <div className="play-match">
+        <h2>Play</h2>
 
-        <form onSubmit={createMatch} className="create-match">
-          <p>
-            <button type="submit">Criar partida</button>
-            {matchId && (
-              <span>
-                ID da partida: <strong>{matchId}</strong>
-              </span>
-            )}
-          </p>
-        </form>
-
-        <form onSubmit={joinMatch} className="join-match">
-          <p>
-            <input
-              type="text"
-              value={joinMatchId}
-              placeholder="ID da partida"
-              onChange={e => setJoinMatchId(e.target.value)}
-            />
-            <input
-              type="text"
-              value={playerName}
-              placeholder="Nome do jogador"
-              onChange={e => setPlayerName(e.target.value)}
-            />
-            <button type="submit">Entrar na partida</button>
-          </p>
-        </form>
+        {!matchData && <button onClick={start}>Iniciar</button>}
 
         {matchData && (
           <div className="match">
@@ -412,4 +332,4 @@ function Home() {
   )
 }
 
-export default Home
+export default PlayMatch
