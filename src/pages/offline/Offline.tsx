@@ -1,16 +1,16 @@
 import React, { CSSProperties, useState } from 'react'
-import './playMatch.scss'
-import Player from '../../models/Player'
-import Card from '../../models/Card'
-import CardComponent from './../../components/card/Card'
+import './offline.scss'
+import Player from '../../models/offline/Player'
+import Card from '../../models/offline/Card'
+import CardComponent from '../../components/card/Card'
 import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd'
-import { Match, IMatch } from '../../models/Match'
-import { MatchRound, IMatchRound } from '../../models/MatchRound'
+import { Match, IMatch } from '../../models/offline/Match'
+import { MatchRound, IMatchRound } from '../../models/offline/MatchRound'
 
 let match: Match
 let round: MatchRound
 
-function PlayMatch() {
+function Offline() {
   const [matchData, setMatchData] = useState<IMatch>()
   const [roundData, setRoundData] = useState<IMatchRound>()
   const [showPlayerCards, setShowPlayerCards] = useState<boolean>(false)
@@ -332,4 +332,4 @@ function PlayMatch() {
   )
 }
 
-export default PlayMatch
+export default Offline

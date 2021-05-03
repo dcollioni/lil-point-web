@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Route, Switch, Redirect } from 'react-router-d
 
 import App from './pages/app/App'
 import Home from './pages/home/Home'
-import PlayMatch from './pages/playMatch/PlayMatch'
+import Offline from './pages/offline/Offline'
+import Play from './pages/play/Play'
 
 const routes = (
   <React.StrictMode>
@@ -11,7 +12,8 @@ const routes = (
       <App>
         <Switch>
           <Route path="/" component={Home} exact />
-          <Route path="/play" component={PlayMatch} exact />
+          <Route path="/offline" component={Offline} exact />
+          <Route path="/play/:matchId" component={Play} exact />
           <Redirect from="*" to="/" />
         </Switch>
       </App>

@@ -1,9 +1,10 @@
 import React from 'react'
-import CardModel from '../../models/Card'
+import OfflineCardModel from '../../models/offline/Card'
+import OnlineCardModel from '../../models/online/Card'
 import './card.scss'
 
 interface Props {
-  card?: CardModel
+  card?: OfflineCardModel | OnlineCardModel
   isSelected?: boolean
   onClick?: React.MouseEventHandler<HTMLDivElement>
 }
