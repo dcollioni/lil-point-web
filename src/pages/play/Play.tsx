@@ -1,6 +1,6 @@
 import React, { CSSProperties, useState, useEffect } from 'react'
 import './play.scss'
-import { IPlayer } from '../../models/online/Player'
+import { IPlayer, Player } from '../../models/online/Player'
 import Card from '../../models/online/Card'
 import CardComponent from '../../components/card/Card'
 import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd'
@@ -8,6 +8,8 @@ import { IMatch, MatchStatus } from '../../models/online/Match'
 import { MatchRound, IMatchRound } from '../../models/online/MatchRound'
 import { RouteComponentProps } from 'react-router-dom'
 import { FormEvent } from 'react'
+import { v4 as uuidv4 } from 'uuid'
+import { Game } from '../../models/online/Game'
 
 let ws: WebSocket
 let round: MatchRound
@@ -22,7 +24,7 @@ function Play(props: RouteComponentProps<TParams>) {
   const [roundData, setRoundData] = useState<IMatchRound>()
 
   useEffect(() => {
-    if (ws && playerData) {
+    if (ws) {
       ws.onmessage = (e: MessageEvent) => onMessage(e, playerData)
     }
   }, [playerData])
@@ -32,7 +34,17 @@ function Play(props: RouteComponentProps<TParams>) {
     // round = match.currentRound
     // setMatchData({ ...match })
     // setRoundData({ ...round })
-    await fetch(`http://localhost:3001/match/${matchId}/start`, { method: 'post' })
+    // await fetch(`http://localhost:3001/match/${matchId}/start`, { method: 'post' })
+
+    const startMatchMessage = {
+      type: 'START_MATCH',
+      payload: {
+        at: new Date(),
+        matchId,
+      },
+    }
+
+    ws.send(JSON.stringify(startMatchMessage))
   }
 
   const nextRound = async () => {
@@ -74,9 +86,12 @@ function Play(props: RouteComponentProps<TParams>) {
 
     if (droppableId.startsWith('game')) {
       const cardId = result.draggableId
+      const card = playerData?.cards.find(card => card.id === cardId)
       const gameId = droppableId.split('_')[1]
-      dropCard(cardId, gameId)
-      return
+
+      if (card) {
+        dropCards([card], gameId)
+      }
     }
   }
 
@@ -88,22 +103,46 @@ function Play(props: RouteComponentProps<TParams>) {
     // round.playerDiscardCard(cardId)
     // setRoundData({ ...round })
 
-    const res = await fetch(`http://localhost:3001/match/${matchId}/discard/${cardId}`, { method: 'post' })
-
-    if (res.ok) {
-      playerData.cards = playerData?.cards.filter(card => card.id !== cardId)
-      playerData.selectedCards = []
-      setPlayerData({ ...playerData })
+    const discardCardMessage = {
+      type: 'DISCARD_CARD',
+      payload: {
+        matchId,
+        playerId: playerData.id,
+        cardId,
+      },
     }
+
+    ws.send(JSON.stringify(discardCardMessage))
+
+    // const res = await fetch(`http://localhost:3001/match/${matchId}/discard/${cardId}`, { method: 'post' })
+
+    // if (res.ok) {
+    //   playerData.cards = playerData?.cards.filter(card => card.id !== cardId)
+    //   playerData.selectedCards = []
+    //   setPlayerData({ ...playerData })
+    // }
   }
 
-  const dropCard = (cardId: string, gameId: string) => {
-    if (!round) {
+  const dropCards = (cards: Card[], gameId: string) => {
+    if (!roundData || !playerData) {
       return
     }
 
-    round.playerDropCard([cardId], gameId)
-    setRoundData({ ...round })
+    const dropCardsMessage = {
+      type: 'DROP_CARDS',
+      payload: {
+        at: new Date(),
+        matchId,
+        playerId: playerData.id,
+        gameId,
+        cards,
+      },
+    }
+
+    ws.send(JSON.stringify(dropCardsMessage))
+
+    // round.playerDropCard([cardId], gameId)
+    // setRoundData({ ...round })
   }
 
   const grid = 8
@@ -156,12 +195,27 @@ function Play(props: RouteComponentProps<TParams>) {
   }
 
   const onClickDropGame = () => {
-    if (!round) {
+    if (!playerData || !roundData) {
       return
     }
 
-    round.playerDropGame()
-    setRoundData({ ...round })
+    // round.playerDropGame()
+    // setRoundData({ ...round })
+
+    const cards = [...playerData.selectedCards, ...roundData.table.selectedCards]
+
+    const dropGameMessage = {
+      type: 'DROP_GAME',
+      payload: {
+        at: new Date(),
+        matchId,
+        playerId: playerData?.id,
+        cards, //: playerData.selectedCards,
+        // tableCards: roundData.table.selectedCards,
+      },
+    }
+
+    ws.send(JSON.stringify(dropGameMessage))
   }
 
   const onClickBuyCard = async () => {
@@ -171,7 +225,18 @@ function Play(props: RouteComponentProps<TParams>) {
     // await round.playerBuyCard()
     // setRoundData({ ...round })
 
-    await fetch(`http://localhost:3001/match/${matchId}/buy`, { method: 'post' })
+    // await fetch(`http://localhost:3001/match/${matchId}/buy`, { method: 'post' })
+
+    const buyCardMessage = {
+      type: 'BUY_CARD',
+      payload: {
+        at: new Date(),
+        matchId,
+        playerId: playerData?.id,
+      },
+    }
+
+    ws.send(JSON.stringify(buyCardMessage))
   }
 
   const onClickDiscard = () => {
@@ -189,51 +254,60 @@ function Play(props: RouteComponentProps<TParams>) {
   }
 
   const onClickGame = (gameId: string) => {
-    if (!round) {
+    if (!roundData || !playerData) {
       return
     }
 
-    const { turn } = round
-    const cardsIds = turn.player.selectedCards.map(card => card.id)
-    round.playerDropCard(cardsIds, gameId)
-    setRoundData({ ...round })
+    const cards = playerData.selectedCards
+    dropCards(cards, gameId)
+
+    // const { turn } = round
+    // const cardsIds = turn.player.selectedCards.map(card => card.id)
+    // round.playerDropCard(cardsIds, gameId)
+    // setRoundData({ ...round })
   }
 
   const joinMatch = async (e: FormEvent) => {
     e.preventDefault()
 
-    const payload = { name: playerName }
+    // const payload = { name: playerName }
 
-    const res = await fetch(`http://localhost:3001/match/${matchId}/join`, {
-      method: 'post',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' },
-    })
+    // const res = await fetch(`http://localhost:3001/match/${matchId}/join`, {
+    //   method: 'post',
+    //   body: JSON.stringify(payload),
+    //   headers: { 'Content-Type': 'application/json' },
+    // })
 
-    const player = await res.json()
-    console.log(player)
-    setPlayerData({ ...player })
+    // const player = await res.json()
+    // console.log(player)
+    // setPlayerData({ ...player })
 
-    ws = new WebSocket('ws://localhost:8080', matchId)
+    const playerId = uuidv4()
+    const protocol = `${matchId}_${playerId}`
+    ws = new WebSocket('ws://localhost:8080', protocol)
 
     ws.onopen = () => {
-      const connectMessage = {
-        type: 'CONNECT',
+      const joinMessage = {
+        type: 'JOIN_MATCH',
         payload: {
-          matchId: matchId,
-          playerId: player.id,
+          at: new Date(),
+          matchId,
+          playerId,
+          playerName,
         },
       }
 
-      ws.send(JSON.stringify(connectMessage))
+      ws.send(JSON.stringify(joinMessage))
     }
 
-    // ws.onmessage = (e: MessageEvent<string>) => {
-    //   onMessage(e, playerData)
-    // }
+    ws.onmessage = (e: MessageEvent) => {
+      onMessage(e, playerData)
+    }
   }
 
-  const onMessage = (e: MessageEvent<string>, playerData: IPlayer) => {
+  const onMessage = (e: MessageEvent<string>, playerData?: IPlayer) => {
+    console.log(e)
+
     let data
     try {
       data = JSON.parse(e.data)
@@ -242,55 +316,145 @@ function Play(props: RouteComponentProps<TParams>) {
     }
 
     console.log(data.type)
+    console.log({ playerData })
 
-    let match
-    let updatedPlayer
+    const updatePlayer = (payload: any) => {
+      const player = payload.player as Player
+      setPlayerData({ ...player })
+    }
+
+    const updateMatch = (payload: any) => {
+      const match = payload.match as IMatch
+      setMatchData({ ...match })
+
+      if (match.currentRound) {
+        setRoundData({ ...match.currentRound })
+      }
+    }
+
+    const handleCardBought = (payload: any) => {
+      const card = payload.card as Card
+
+      if (playerData) {
+        playerData.cards.push(card)
+        setPlayerData({ ...playerData })
+      }
+    }
+
+    const handleCardDiscarded = (payload: any) => {
+      const remainingCards = payload.remainingCards as Card[]
+      const remainingCardsIds = remainingCards.map(card => card.id)
+
+      if (playerData) {
+        playerData.cards = playerData.cards.filter(card => remainingCardsIds.includes(card.id))
+        playerData.selectedCards = []
+        setPlayerData({ ...playerData })
+      }
+    }
+
+    const handleGameDropped = (payload: any) => {
+      const game = payload.game as Game
+      const cardsIds = game.cards.map(card => card.id)
+
+      if (playerData) {
+        playerData.cards = playerData.cards.filter(card => !cardsIds.includes(card.id))
+        playerData.selectedCards = []
+        setPlayerData({ ...playerData })
+      }
+    }
+
+    const handleCardsDropped = (payload: any) => {
+      const cards = payload.cards as Card[]
+      const cardsIds = cards.map(card => card.id)
+
+      if (playerData) {
+        playerData.cards = playerData.cards.filter(card => !cardsIds.includes(card.id))
+        playerData.selectedCards = []
+        setPlayerData({ ...playerData })
+      }
+    }
 
     switch (data.type) {
-      case 'PLAYER_CONNECTED':
-        match = data.payload.match
-        setMatchData({ ...data.payload.match })
-
-        updatedPlayer = match.players.find((p: IPlayer) => p.id === playerData.id)
-        if (updatedPlayer) {
-          setPlayerData({ ...updatedPlayer })
-        }
+      case 'JOINED_MATCH':
+        console.log(data.payload)
+        updatePlayer(data.payload)
         break
-      case 'MATCH_STARTED':
-        match = data.payload.match
-        setMatchData({ ...match })
-        setRoundData({ ...match.currentRound })
-
-        updatedPlayer = match.players.find((p: IPlayer) => p.id === playerData.id)
-        if (updatedPlayer) {
-          setPlayerData({ ...updatedPlayer })
-        }
+      case 'MATCH_UPDATED':
+        console.log(data.payload)
+        updateMatch(data.payload)
+        break
+      case 'PLAYER_UPDATED':
+        console.log(data.payload)
+        updatePlayer(data.payload)
         break
       case 'CARD_BOUGHT':
-        match = data.payload.match as IMatch
-        setMatchData({ ...match })
-        setRoundData({ ...match.currentRound })
-
-        if (match.currentRound.turn.player.id === playerData.id) {
-          const cards = match.currentRound.turn.player.cards
-          const lastCard = cards[cards.length - 1]
-          playerData.cards.push(lastCard)
-          setPlayerData({ ...playerData })
-        }
+        console.log(data.payload)
+        handleCardBought(data.payload)
         break
       case 'CARD_DISCARDED':
-        match = data.payload.match as IMatch
-        setMatchData({ ...match })
-        setRoundData({ ...match.currentRound })
-
-        // if (match.currentRound.turn.player.id === playerData.id) {
-        //   const cards = match.currentRound.turn.player.cards
-        //   const lastCard = cards[cards.length - 1]
-        //   playerData.cards.push(lastCard)
-        //   setPlayerData({ ...playerData })
-        // }
+        console.log(data.payload)
+        handleCardDiscarded(data.payload)
+        break
+      case 'GAME_DROPPED':
+        console.log(data.payload)
+        handleGameDropped(data.payload)
+        break
+      case 'CARDS_DROPPED':
+        console.log(data.payload)
+        handleCardsDropped(data.payload)
         break
     }
+
+    // let data
+    // try {
+    //   data = JSON.parse(e.data)
+    // } catch (err) {
+    //   return
+    // }
+    // console.log(data.type)
+    // let match
+    // let updatedPlayer
+    // switch (data.type) {
+    //   case 'PLAYER_CONNECTED':
+    //     match = data.payload.match
+    //     setMatchData({ ...data.payload.match })
+    //     updatedPlayer = match.players.find((p: IPlayer) => p.id === playerData.id)
+    //     if (updatedPlayer) {
+    //       setPlayerData({ ...updatedPlayer })
+    //     }
+    //     break
+    //   case 'MATCH_STARTED':
+    //     match = data.payload.match
+    //     setMatchData({ ...match })
+    //     setRoundData({ ...match.currentRound })
+    //     updatedPlayer = match.players.find((p: IPlayer) => p.id === playerData.id)
+    //     if (updatedPlayer) {
+    //       setPlayerData({ ...updatedPlayer })
+    //     }
+    //     break
+    //   case 'CARD_BOUGHT':
+    //     match = data.payload.match as IMatch
+    //     setMatchData({ ...match })
+    //     setRoundData({ ...match.currentRound })
+    //     if (match.currentRound.turn.player.id === playerData.id) {
+    //       const cards = match.currentRound.turn.player.cards
+    //       const lastCard = cards[cards.length - 1]
+    //       playerData.cards.push(lastCard)
+    //       setPlayerData({ ...playerData })
+    //     }
+    //     break
+    //   case 'CARD_DISCARDED':
+    //     match = data.payload.match as IMatch
+    //     setMatchData({ ...match })
+    //     setRoundData({ ...match.currentRound })
+    //     // if (match.currentRound.turn.player.id === playerData.id) {
+    //     //   const cards = match.currentRound.turn.player.cards
+    //     //   const lastCard = cards[cards.length - 1]
+    //     //   playerData.cards.push(lastCard)
+    //     //   setPlayerData({ ...playerData })
+    //     // }
+    //     break
+    // }
   }
 
   return (
@@ -375,7 +539,7 @@ function Play(props: RouteComponentProps<TParams>) {
                   {provided => (
                     <div
                       className={`game ${
-                        !roundData.turn.canDrop || roundData.turn.player.selectedCards.length === 0 ? 'disabled' : ''
+                        !roundData.turn.canDrop || playerData?.selectedCards.length === 0 ? 'disabled' : ''
                       }`}
                       ref={provided.innerRef}
                       {...provided.droppableProps}
@@ -407,7 +571,7 @@ function Play(props: RouteComponentProps<TParams>) {
                   onClick={() => onClickDropGame()}
                   disabled={
                     !roundData.turn.canDrop ||
-                    roundData.turn.player.selectedCards.length + roundData.table.selectedCards.length < 3
+                    playerData.selectedCards.length + roundData.table.selectedCards.length < 3
                   }
                 >
                   Baixar jogo
