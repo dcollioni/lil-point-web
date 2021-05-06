@@ -51,6 +51,16 @@ function Play(props: RouteComponentProps<TParams>) {
     // round = await match.nextRound()
     // setMatchData({ ...match })
     // setRoundData({ ...round })
+
+    const nextRoundMessage = {
+      type: 'NEXT_ROUND',
+      payload: {
+        at: new Date(),
+        matchId,
+      },
+    }
+
+    ws.send(JSON.stringify(nextRoundMessage))
   }
 
   const reorder = (list: Card[], startIndex: number, endIndex: number) => {
@@ -186,12 +196,29 @@ function Play(props: RouteComponentProps<TParams>) {
   }
 
   const onClickDiscardedCard = (card: Card) => {
-    if (!round) {
+    if (!roundData) {
       return
     }
 
-    round.selectDiscardedCard(card)
-    setRoundData({ ...round })
+    const { turn, table } = roundData
+    const { selectedCards } = table
+
+    if (selectedCards.length === 0) {
+      if (!turn?.canBuy) {
+        return
+      }
+
+      table.selectedCards.push(card)
+      turn.canBuy = false
+      turn.canDrop = true
+    } else if (selectedCards.includes(card)) {
+      table.selectedCards = selectedCards.filter(c => c !== card)
+      turn.canBuy = true
+      turn.canDrop = false
+    }
+
+    // round.selectDiscardedCard(card)
+    setRoundData({ ...roundData })
   }
 
   const onClickDropGame = () => {
@@ -219,13 +246,9 @@ function Play(props: RouteComponentProps<TParams>) {
   }
 
   const onClickBuyCard = async () => {
-    // // if (!round) {
-    // //   return
-    // // }
-    // await round.playerBuyCard()
-    // setRoundData({ ...round })
-
-    // await fetch(`http://localhost:3001/match/${matchId}/buy`, { method: 'post' })
+    if (!roundData || !roundData.turn.canBuy) {
+      return
+    }
 
     const buyCardMessage = {
       type: 'BUY_CARD',
@@ -284,7 +307,8 @@ function Play(props: RouteComponentProps<TParams>) {
 
     const playerId = uuidv4()
     const protocol = `${matchId}_${playerId}`
-    ws = new WebSocket('ws://localhost:8080', protocol)
+    // ws = new WebSocket('ws://localhost:8080', protocol)
+    ws = new WebSocket('ws://lil-point-ws.herokuapp.com', protocol)
 
     ws.onopen = () => {
       const joinMessage = {
@@ -470,6 +494,7 @@ function Play(props: RouteComponentProps<TParams>) {
                 value={playerName}
                 placeholder="Nome do jogador"
                 onChange={e => setPlayerName(e.target.value)}
+                autoFocus
               />
               <button type="submit">Entrar na partida</button>
             </p>
@@ -480,8 +505,8 @@ function Play(props: RouteComponentProps<TParams>) {
           <div className="match">
             {matchData.status === MatchStatus.created && <button onClick={start}>Iniciar</button>}
             {matchData.status === MatchStatus.started && (
-              <button onClick={nextRound} disabled={true}>
-                Em andamento
+              <button onClick={nextRound} disabled={!roundData?.hasEnded}>
+                {roundData?.hasEnded ? 'Próximo round' : 'Em andamento'}
               </button>
             )}
             {matchData.status === MatchStatus.finished && <button disabled={true}>Nova partida</button>}
@@ -498,8 +523,6 @@ function Play(props: RouteComponentProps<TParams>) {
             </p>
           </div>
         )}
-
-        {roundData?.hasEnded && <button onClick={nextRound}>Próximo round</button>}
 
         {roundData?.deck && (
           <div id="deck">

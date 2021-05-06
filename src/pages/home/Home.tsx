@@ -11,7 +11,8 @@ function Home() {
   useEffect(() => {
     const connect = () => {
       console.log('connecting...')
-      ws = new WebSocket('ws://localhost:8080')
+      // ws = new WebSocket('ws://localhost:8080')
+      ws = new WebSocket('ws://lil-point-ws.herokuapp.com')
 
       ws.onmessage = e => {
         const message = JSON.parse(e.data)
