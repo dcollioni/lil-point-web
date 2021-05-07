@@ -5,14 +5,13 @@ import Card from '../../models/online/Card'
 import CardComponent from '../../components/card/Card'
 import { DragDropContext, Droppable, Draggable, DropResult, DraggingStyle, NotDraggingStyle } from 'react-beautiful-dnd'
 import { IMatch, MatchStatus } from '../../models/online/Match'
-import { MatchRound, IMatchRound } from '../../models/online/MatchRound'
+import { IMatchRound } from '../../models/online/MatchRound'
 import { RouteComponentProps } from 'react-router-dom'
 import { FormEvent } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Game } from '../../models/online/Game'
 
 let ws: WebSocket
-let round: MatchRound
 
 type TParams = { matchId: string }
 
@@ -30,12 +29,6 @@ function Play(props: RouteComponentProps<TParams>) {
   }, [playerData])
 
   const start = async () => {
-    // match = await new Match(['PlayerA', 'PlayerB']).start()
-    // round = match.currentRound
-    // setMatchData({ ...match })
-    // setRoundData({ ...round })
-    // await fetch(`http://localhost:3001/match/${matchId}/start`, { method: 'post' })
-
     const startMatchMessage = {
       type: 'START_MATCH',
       payload: {
@@ -48,10 +41,6 @@ function Play(props: RouteComponentProps<TParams>) {
   }
 
   const nextRound = async () => {
-    // round = await match.nextRound()
-    // setMatchData({ ...match })
-    // setRoundData({ ...round })
-
     const nextRoundMessage = {
       type: 'NEXT_ROUND',
       payload: {
@@ -85,8 +74,6 @@ function Play(props: RouteComponentProps<TParams>) {
     }
 
     if (droppableId.startsWith('player')) {
-      // droppableId = droppableId.split('_')[1]
-      // const player = matchData?.players.find(p => p.id === droppableId)
       if (playerData) {
         playerData.cards = reorder(playerData.cards, result.source.index, result.destination.index)
         setPlayerData({ ...playerData })
@@ -110,9 +97,6 @@ function Play(props: RouteComponentProps<TParams>) {
       return
     }
 
-    // round.playerDiscardCard(cardId)
-    // setRoundData({ ...round })
-
     const discardCardMessage = {
       type: 'DISCARD_CARD',
       payload: {
@@ -123,14 +107,6 @@ function Play(props: RouteComponentProps<TParams>) {
     }
 
     ws.send(JSON.stringify(discardCardMessage))
-
-    // const res = await fetch(`http://localhost:3001/match/${matchId}/discard/${cardId}`, { method: 'post' })
-
-    // if (res.ok) {
-    //   playerData.cards = playerData?.cards.filter(card => card.id !== cardId)
-    //   playerData.selectedCards = []
-    //   setPlayerData({ ...playerData })
-    // }
   }
 
   const dropCards = (cards: Card[], gameId: string) => {
@@ -150,9 +126,6 @@ function Play(props: RouteComponentProps<TParams>) {
     }
 
     ws.send(JSON.stringify(dropCardsMessage))
-
-    // round.playerDropCard([cardId], gameId)
-    // setRoundData({ ...round })
   }
 
   const grid = 8
@@ -293,18 +266,6 @@ function Play(props: RouteComponentProps<TParams>) {
   const joinMatch = async (e: FormEvent) => {
     e.preventDefault()
 
-    // const payload = { name: playerName }
-
-    // const res = await fetch(`http://localhost:3001/match/${matchId}/join`, {
-    //   method: 'post',
-    //   body: JSON.stringify(payload),
-    //   headers: { 'Content-Type': 'application/json' },
-    // })
-
-    // const player = await res.json()
-    // console.log(player)
-    // setPlayerData({ ...player })
-
     const playerId = uuidv4()
     const protocol = `${matchId}_${playerId}`
     // ws = new WebSocket('ws://localhost:8080', protocol)
@@ -322,6 +283,11 @@ function Play(props: RouteComponentProps<TParams>) {
       }
 
       ws.send(JSON.stringify(joinMessage))
+
+      setInterval(() => {
+        ws.send(JSON.stringify({ type: 'KEEP_ALIVE' }))
+        fetch('https://lil-point-ws.herokuapp.com/')
+      }, 30000)
     }
 
     ws.onmessage = (e: MessageEvent) => {
@@ -428,57 +394,6 @@ function Play(props: RouteComponentProps<TParams>) {
         handleCardsDropped(data.payload)
         break
     }
-
-    // let data
-    // try {
-    //   data = JSON.parse(e.data)
-    // } catch (err) {
-    //   return
-    // }
-    // console.log(data.type)
-    // let match
-    // let updatedPlayer
-    // switch (data.type) {
-    //   case 'PLAYER_CONNECTED':
-    //     match = data.payload.match
-    //     setMatchData({ ...data.payload.match })
-    //     updatedPlayer = match.players.find((p: IPlayer) => p.id === playerData.id)
-    //     if (updatedPlayer) {
-    //       setPlayerData({ ...updatedPlayer })
-    //     }
-    //     break
-    //   case 'MATCH_STARTED':
-    //     match = data.payload.match
-    //     setMatchData({ ...match })
-    //     setRoundData({ ...match.currentRound })
-    //     updatedPlayer = match.players.find((p: IPlayer) => p.id === playerData.id)
-    //     if (updatedPlayer) {
-    //       setPlayerData({ ...updatedPlayer })
-    //     }
-    //     break
-    //   case 'CARD_BOUGHT':
-    //     match = data.payload.match as IMatch
-    //     setMatchData({ ...match })
-    //     setRoundData({ ...match.currentRound })
-    //     if (match.currentRound.turn.player.id === playerData.id) {
-    //       const cards = match.currentRound.turn.player.cards
-    //       const lastCard = cards[cards.length - 1]
-    //       playerData.cards.push(lastCard)
-    //       setPlayerData({ ...playerData })
-    //     }
-    //     break
-    //   case 'CARD_DISCARDED':
-    //     match = data.payload.match as IMatch
-    //     setMatchData({ ...match })
-    //     setRoundData({ ...match.currentRound })
-    //     // if (match.currentRound.turn.player.id === playerData.id) {
-    //     //   const cards = match.currentRound.turn.player.cards
-    //     //   const lastCard = cards[cards.length - 1]
-    //     //   playerData.cards.push(lastCard)
-    //     //   setPlayerData({ ...playerData })
-    //     // }
-    //     break
-    // }
   }
 
   return (
